@@ -1,0 +1,9 @@
+[package]
+name = "jvm_rs"
+version = "0.1.0"
+authors = ["Onur <onur_sahin@chromium.org>"]
+
+[dependencies]
+byteorder = "1.0"
+enum-primitive-derive = "^0.1"
+num-traits = "^0.1"

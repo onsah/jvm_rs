@@ -1,0 +1,3 @@
+Better abstraction on attribute_info -> Done
+Modify MemberInfo in order to new attribute_info -> Done
+implement CPItem enum and make ConstantPool is a collection of them
