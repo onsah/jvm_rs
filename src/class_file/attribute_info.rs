@@ -1,4 +1,5 @@
-use class_file::constant_pool::{ConstantPool, Utf8Info};
+use std::rc::Rc;
+use class_file::constant_pool::{ConstantPoolRep};
 use class_file::from_bytes::FromBytes;
 use class_file::pos_slice::PoSlice;
 use result::Result;
@@ -9,40 +10,36 @@ const CODE: &str = "Code";
 const SOURCE_FILE: &str = "SourceFile";
 
 #[derive(Clone)]
-pub enum AttributeInfo<'a> {
-    Raw(RawAttribute<'a>),
+pub enum AttributeInfo {
+    Raw(RawAttribute),
     Constant(ConstantValueAttribute),
-    Code(CodeAttribute<'a>),
-    Source(SourceFileAttribute<'a>),
+    Code(CodeAttribute),
+    Source(SourceFileAttribute),
 }
 
-impl<'a> AttributeInfo<'a> {
-    pub fn new(slice: &'a PoSlice<'a>, constant_pool: ConstantPool<'a>) -> Result<Self> {
+impl<'a> AttributeInfo {
+    // TODO: do something to to_strings
+    pub fn new(slice: &'a PoSlice<'a>, constant_pool: Rc<ConstantPoolRep>) -> Result<Self> {
         let attribute_name_index = slice.read_u2()?;
-        let info: Utf8Info<'a> = constant_pool.get(attribute_name_index as usize)?.into()?;
+        let info = constant_pool.get(attribute_name_index as usize)?;
         let attribute_length = slice.read_u4()?;
-        let name = info.get_string()?;
-        Ok(match name.as_ref() {
+        let name = info.as_str()?;
+        Ok(match name {
             CONSTANT_VALUE => AttributeInfo::Constant(ConstantValueAttribute::new(slice, 
-                name, 
-                attribute_length, 
-                constant_pool.clone())?),
+                name.to_string())?),
             CODE => AttributeInfo::Code(CodeAttribute::new(slice, 
-                name, 
-                attribute_length, 
+                name.to_string(), 
                 constant_pool.clone())?),
             SOURCE_FILE => AttributeInfo::Source(SourceFileAttribute::new(slice, 
-                name, 
-                attribute_length, 
-                constant_pool)?),
-            _ => AttributeInfo::Raw(RawAttribute::new(slice, 
-                name, 
-                attribute_length, 
+                name.to_string(), 
                 constant_pool.clone())?),
+            _ => AttributeInfo::Raw(RawAttribute::new(slice, 
+                name.to_string(), 
+                attribute_length)?),
         })
     }
 
-    pub fn read_attributes(slice: &'a PoSlice<'a>, constant_pool: ConstantPool<'a>) -> Result<Box<[Self]>> {
+    pub fn read_attributes(slice: &'a PoSlice<'a>, constant_pool: Rc<ConstantPoolRep>) -> Result<Box<[Self]>> {
         let attributes_length = slice.read_u2()?;
         println!("count: {}", attributes_length);
         let mut attribute_infos = Vec::with_capacity(attributes_length as usize);
@@ -62,16 +59,16 @@ impl<'a> AttributeInfo<'a> {
 }
 
 #[derive(Clone)]
-pub struct RawAttribute<'a> {
+pub struct RawAttribute {
     pub(super) name: String,
-    pub(super) info: &'a [u1],
+    pub(super) info: Box<[u1]>,
 }
 
-impl<'a> RawAttribute<'a> {
-    pub(super) fn new(slice: &'a PoSlice<'a>, name: String, length: u4, _constant_pool: ConstantPool<'a>) -> Result<Self> {
+impl<'a> RawAttribute {
+    pub(super) fn new(slice: &PoSlice<'a>, name: String, length: u4) -> Result<Self> {
         Ok(RawAttribute {
             name,
-            info: slice.read_slice(length as usize)?,
+            info: slice.read_slice_vec(length as usize)?.into_boxed_slice(),
         })
     }
 }
@@ -83,7 +80,7 @@ pub struct ConstantValueAttribute {
 }
 
 impl<'a> ConstantValueAttribute {
-    pub(super) fn new(slice: &'a PoSlice<'a>, name: String, _length: u4, _constant_pool: ConstantPool<'a>) -> Result<Self> {
+    pub(super) fn new(slice: &PoSlice, name: String) -> Result<Self> {
         Ok(ConstantValueAttribute {
             name,
             constant_value_index: slice.read_u2()?,
@@ -92,22 +89,22 @@ impl<'a> ConstantValueAttribute {
 }
 
 #[derive(Clone)]
-pub struct CodeAttribute<'a> {
+pub struct CodeAttribute {
     pub(super) name: String,
-    pub(super) constant_pool: ConstantPool<'a>,
+    pub(super) constant_pool: Rc<ConstantPoolRep>,
     pub(super) max_stack: u2,
     pub(super) max_locals: u2,
-    pub(super) code:  &'a [u1],
+    pub(super) code:  Box<[u1]>,
     pub(super) exception_table: Box<[Exception]>,
-    pub(super) attributes: Box<[AttributeInfo<'a>]>,
+    pub(super) attributes: Box<[AttributeInfo]>,
 }
 
-impl<'a> CodeAttribute<'a> {
-    pub(super) fn new(slice: &'a PoSlice<'a>, name: String, _length: u4, constant_pool: ConstantPool<'a>) -> Result<Self> {
+impl<'a> CodeAttribute {
+    pub(super) fn new(slice: &'a PoSlice, name: String, constant_pool: Rc<ConstantPoolRep>) -> Result<Self> {
         let max_stack = slice.read_u2()?;
         let max_locals = slice.read_u2()?;
         let code_length = slice.read_u4()?;
-        let code = slice.read_slice(code_length as usize)?;
+        let code = slice.read_slice(code_length as usize)?.to_vec().into_boxed_slice();
         let exception_table = <Box<[Exception]>>::from_bytes(slice)?;
         let attributes = AttributeInfo::read_attributes(slice, constant_pool.clone())?;
         Ok(CodeAttribute {
@@ -123,14 +120,14 @@ impl<'a> CodeAttribute<'a> {
 }
 
 #[derive(Clone)]
-pub struct SourceFileAttribute<'a> {
-    constant_pool: ConstantPool<'a>,
+pub struct SourceFileAttribute {
+    constant_pool: Rc<ConstantPoolRep>,
     name: String,
     sourcefile_index: u2,
 }
 
-impl<'a> SourceFileAttribute<'a> {
-    pub(super) fn new(slice: &'a PoSlice<'a>, name: String, _length: u4, constant_pool: ConstantPool<'a>) -> Result<Self> {
+impl SourceFileAttribute {
+    pub(super) fn new(slice: &PoSlice, name: String, constant_pool: Rc<ConstantPoolRep>) -> Result<Self> {
         Ok(SourceFileAttribute {
             constant_pool,
             name,

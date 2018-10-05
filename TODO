@@ -1,3 +1,8 @@
 Better abstraction on attribute_info -> Done
 Modify MemberInfo in order to new attribute_info -> Done
-implement CPItem enum and make ConstantPool is a collection of them
+implement CPItem enum and make ConstantPool is a collection of them -> {
+    Done: CPItem enum and constructors
+    TODO: implement it to ClassFile and AttributeInfo structs -> Done
+    TODO: test the new implementation. If true delete the old -> Tested
+}
+Start to object heap

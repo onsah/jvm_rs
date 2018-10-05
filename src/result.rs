@@ -10,8 +10,10 @@ pub enum Error {
     CPTag(u1),
     Index(usize),
     WrongTag(Tag),
+    WrongKind(u1),
     EmptyCPInfo(u2),
     OutOfBounds(usize),
+    NotUtf8,    // TODO: better error
     InvalidUtf8,
     MainNotFound,
 }

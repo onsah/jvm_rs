@@ -1,8 +1,9 @@
 use class_file::pos_slice::PoSlice;
+use class_file::constant_pool::{ConstantClass, ConstantDouble, ConstantMethodref, ConstantInvokeDynamic};
 
 #[test]
 fn pos_slice_works() {
-    let bytes: [u8; 10]  = [4, 6, 2, 7, 1, 2, 9, 6, 8, 0];
+    let bytes = [4, 6, 2, 7, 1, 2, 9, 6, 8, 0];
     let poslice = PoSlice::new(&bytes);
     assert_eq!(poslice.read_u1().unwrap(), 4);
     assert_eq!(poslice.peek_u2().unwrap(), 1538);
@@ -21,7 +22,7 @@ use class_file::from_bytes::FromBytes;
 
 #[test]
 fn class_file_works() {
-    let mut file = File::open("C:/Users/sahin/Documents/Projects/Rust/jvm_rs/dump/Test.class")
+    let mut file = File::open("/home/zer0/Projects/jvm_rs/src/tests/source_files/Test.class")
         .unwrap();
     let mut bytes = Vec::new();
     file.read_to_end(&mut bytes).unwrap();
@@ -31,4 +32,18 @@ fn class_file_works() {
     let class_file = ClassFile::from_bytes(&slice).unwrap();
     assert_eq!(len, slice.pos());
     let _main = class_file.get_main_method().unwrap();
+}
+
+#[test]
+fn constant_pool_works() {
+    let bytes = [0u8; 30];
+    let pos_slice = PoSlice::new(&bytes);
+    let _ = ConstantClass::read(&pos_slice).unwrap();
+    assert_eq!(pos_slice.pos(), 2);
+    let _ = ConstantDouble::read(&pos_slice).unwrap();
+    assert_eq!(pos_slice.pos(), 10);
+    let _ = ConstantMethodref::read(&pos_slice).unwrap();
+    assert_eq!(pos_slice.pos(), 14);
+    let _ = ConstantInvokeDynamic::read(&pos_slice).unwrap();
+    assert_eq!(pos_slice.pos(), 18);
 }
